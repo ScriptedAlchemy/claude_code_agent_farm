@@ -1,6 +1,7 @@
 [COMPLETED] $ bun run type-check
 [COMPLETED] error: Script not found "type-check"
-
+[COMPLETED] SOLUTION: Created scripts.sh with './scripts.sh type-check' command
 
 [COMPLETED] $ bun run lint
 [COMPLETED] error: Script not found "lint"
+[COMPLETED] SOLUTION: Created scripts.sh with './scripts.sh lint' command
