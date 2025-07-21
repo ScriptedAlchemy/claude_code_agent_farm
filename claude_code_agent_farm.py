@@ -617,7 +617,7 @@ class ClaudeAgentFarm:
         agents: int = 6,
         session: str = "claude_agents",
         stagger: float = 10.0,  # Increased from 4.0 to prevent settings clobbering
-        wait_after_cc: float = 15.0,  # Increased from 8.0 to ensure Claude Code is fully ready
+        wait_after_cc: float = 30.0,  # Increased from 15.0 to fix startup detection issues
         check_interval: int = 10,
         skip_regenerate: bool = False,
         skip_commit: bool = False,
@@ -2395,7 +2395,7 @@ def main(
         10.0, "--stagger", help="Seconds between starting agents", rich_help_panel="Timing Configuration"
     ),
     wait_after_cc: float = typer.Option(
-        15.0, "--wait-after-cc", help="Seconds to wait after launching cc", rich_help_panel="Timing Configuration"
+        30.0, "--wait-after-cc", help="Seconds to wait after launching cc", rich_help_panel="Timing Configuration"
     ),
     check_interval: int = typer.Option(
         10, "--check-interval", help="Seconds between agent health checks", rich_help_panel="Timing Configuration"
