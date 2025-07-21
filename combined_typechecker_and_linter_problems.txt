@@ -1,9 +1,11 @@
-[COMPLETED] $ bun run type-check
-[COMPLETED] error: Script not found "type-check"
+$ uv run mypy src --strict
+   Building claude-code-agent-farm @ file:///Users/bytedance/dev/claude_code_agent_farm
+      Built claude-code-agent-farm @ file:///Users/bytedance/dev/claude_code_agent_farm
+Uninstalled 1 package in 3ms
+Installed 1 package in 3ms
+There are no .py[i] files in directory 'src'
 
-[COMPLETED] 
-[COMPLETED] $ bun run lint
-[COMPLETED] error: Script not found "lint"
 
-[COMPLETED] claude_code_agent_farm.py:1136:25: F841 Local variable `result` is assigned to but never used
-[COMPLETED] claude_code_agent_farm.py:1138:28: RUF100 [*] Unused `noqa` directive (unused: `F841`)
+$ uv run ruff check src tests --fix
+tests:1:1: E902 No such file or directory (os error 2)
+Found 1 error.
