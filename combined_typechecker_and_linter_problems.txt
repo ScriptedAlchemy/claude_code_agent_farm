@@ -1,6 +1,9 @@
-$ bun run type-check
-error: Script not found "type-check"
+[COMPLETED] $ bun run type-check
+[COMPLETED] error: Script not found "type-check"
 
+[COMPLETED] 
+[COMPLETED] $ bun run lint
+[COMPLETED] error: Script not found "lint"
 
-$ bun run lint
-error: Script not found "lint"
+[COMPLETED] claude_code_agent_farm.py:1136:25: F841 Local variable `result` is assigned to but never used
+[COMPLETED] claude_code_agent_farm.py:1138:28: RUF100 [*] Unused `noqa` directive (unused: `F841`)

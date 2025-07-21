@@ -55,8 +55,6 @@ def interruptible_confirm(message: str, default: bool = False) -> bool:
         return default
 
 
-
-
 # ─────────────────────────────── Constants ────────────────────────────────── #
 
 MONITOR_STATE_FILE = ".claude_agent_farm_state.json"
@@ -166,12 +164,12 @@ def tmux_send(target: str, data: str, enter: bool = True, update_heartbeat: bool
 
             if enter:
                 run(f"tmux send-keys -t {target} C-m", quiet=True)
-            
+
             # Update heartbeat if requested (default True)
             if update_heartbeat:
                 # Extract agent ID from target (format: session:window.pane)
                 try:
-                    pane_id = target.split('.')[-1]
+                    pane_id = target.split(".")[-1]
                     agent_id = int(pane_id)
                     heartbeat_file = Path(".heartbeats") / f"agent{agent_id:02d}.heartbeat"
                     if heartbeat_file.parent.exists():
@@ -232,11 +230,11 @@ class AgentMonitor:
         self.base_idle_timeout = idle_timeout  # Keep original value as base
         self.max_errors = max_errors
         self.project_path = project_path
-        
+
         # Cycle time tracking for adaptive timeout
         self.cycle_times: List[float] = []
         self.max_cycle_history = 20  # Keep last 20 cycle times
-        
+
         # Setup heartbeats directory
         self.heartbeats_dir: Optional[Path] = None
         if self.project_path:
@@ -266,27 +264,29 @@ class AgentMonitor:
         if len(self.cycle_times) < 3:
             # Not enough data, use base timeout
             return self.base_idle_timeout
-        
+
         # Calculate median cycle time
         sorted_times = sorted(self.cycle_times)
         median_time = sorted_times[len(sorted_times) // 2]
-        
+
         # Set timeout to 3x median cycle time, but within reasonable bounds
         adaptive_timeout = int(median_time * 3)
-        
+
         # Enforce minimum and maximum bounds
         min_timeout = 30  # At least 30 seconds
         max_timeout = 600  # At most 10 minutes
-        
+
         adaptive_timeout = max(min_timeout, min(adaptive_timeout, max_timeout))
-        
+
         # Only update if significantly different from current (>20% change)
         if abs(adaptive_timeout - self.idle_timeout) / self.idle_timeout > 0.2:
-            console.print(f"[dim]Adjusting idle timeout: {self.idle_timeout}s → {adaptive_timeout}s (median cycle: {median_time:.1f}s)[/dim]")
+            console.print(
+                f"[dim]Adjusting idle timeout: {self.idle_timeout}s → {adaptive_timeout}s (median cycle: {median_time:.1f}s)[/dim]"
+            )
             self.idle_timeout = adaptive_timeout
-        
+
         return self.idle_timeout
-    
+
     def detect_context_percentage(self, content: str) -> Optional[int]:
         """Extract context percentage from pane content"""
         # Try multiple patterns for robustness
@@ -347,7 +347,7 @@ class AgentMonitor:
         # First check if Claude is actually ready (avoid false positives)
         if self.is_claude_ready(content):
             return False
-            
+
         error_indicators = [
             # Login/auth prompts
             "Select login method:",
@@ -413,13 +413,13 @@ class AgentMonitor:
         else:
             # Store previous status to detect transitions
             prev_status = agent.get("status", "unknown")
-            
+
             # Update status based on activity
             if self.is_claude_working(content):
                 # If transitioning to working, record cycle start time
                 if prev_status != "working" and agent["cycle_start_time"] is None:
                     agent["cycle_start_time"] = datetime.now()
-                
+
                 agent["status"] = "working"
                 agent["last_activity"] = datetime.now()
                 # Update heartbeat when agent is actively working
@@ -429,20 +429,20 @@ class AgentMonitor:
                 if prev_status == "working" and agent["cycle_start_time"] is not None:
                     cycle_time = (datetime.now() - agent["cycle_start_time"]).total_seconds()
                     self.cycle_times.append(cycle_time)
-                    
+
                     # Keep only recent cycle times
                     if len(self.cycle_times) > self.max_cycle_history:
                         self.cycle_times.pop(0)
-                    
+
                     # Update adaptive timeout
                     self.calculate_adaptive_timeout()
-                    
+
                     # Reset cycle start time
                     agent["cycle_start_time"] = None
-                    
+
                     # Increment cycle count
                     agent["cycles"] += 1
-                
+
                 # Check if idle for too long
                 idle_time = (datetime.now() - agent["last_activity"]).total_seconds()
                 if idle_time > self.idle_timeout:
@@ -453,22 +453,22 @@ class AgentMonitor:
                     self._update_heartbeat(agent_id)
             else:
                 agent["status"] = "unknown"
-        
+
         # Update tmux pane title with context information
         self._update_pane_title(agent_id, agent)
 
         return agent
-    
+
     def _update_pane_title(self, agent_id: int, agent: Dict) -> None:
         """Update tmux pane title with agent status and context percentage"""
         pane_target = self.pane_mapping.get(agent_id)
         if not pane_target:
             return
-        
+
         # Build title with context warning
         context = agent["last_context"]
         status = agent["status"]
-        
+
         # Create context indicator with warning colors
         if context <= self.context_threshold:
             context_str = f"⚠️ {context}%"
@@ -476,7 +476,7 @@ class AgentMonitor:
             context_str = f"⚡{context}%"
         else:
             context_str = f"{context}%"
-        
+
         # Status emoji
         status_emoji = {
             "working": "🔧",
@@ -484,12 +484,12 @@ class AgentMonitor:
             "idle": "💤",
             "error": "❌",
             "starting": "🚀",
-            "unknown": "❓"
+            "unknown": "❓",
         }.get(status, "")
-        
+
         # Build title
         title = f"[{agent_id:02d}] {status_emoji} Context: {context_str}"
-        
+
         # Set pane title
         with contextlib.suppress(subprocess.CalledProcessError):
             run(f"tmux select-pane -t {pane_target} -T {shlex.quote(title)}", quiet=True)
@@ -498,7 +498,7 @@ class AgentMonitor:
         """Update heartbeat file for an agent"""
         if not self.heartbeats_dir:
             return
-        
+
         heartbeat_file = self.heartbeats_dir / f"agent{agent_id:02d}.heartbeat"
         try:
             # Write current timestamp to heartbeat file
@@ -507,23 +507,23 @@ class AgentMonitor:
         except Exception:
             # Silently ignore heartbeat write errors
             pass
-    
+
     def _check_heartbeat_age(self, agent_id: int) -> Optional[float]:
         """Check age of heartbeat file in seconds"""
         if not self.heartbeats_dir:
             return None
-        
+
         heartbeat_file = self.heartbeats_dir / f"agent{agent_id:02d}.heartbeat"
         if not heartbeat_file.exists():
             return None
-        
+
         try:
             mtime = heartbeat_file.stat().st_mtime
             age = time.time() - mtime
             return age
         except Exception:
             return None
-    
+
     def needs_restart(self, agent_id: int) -> Optional[str]:
         """Determine if an agent needs to be restarted and why
 
@@ -582,7 +582,7 @@ class AgentMonitor:
                 "starting": "[yellow]",
                 "unknown": "[dim]",
             }.get(agent["status"], "")
-            
+
             # Get heartbeat age
             heartbeat_age = self._check_heartbeat_age(agent_id)
             if heartbeat_age is None:
@@ -660,10 +660,10 @@ class ClaudeAgentFarm:
 
         # Initialize pane mapping
         self.pane_mapping: Dict[int, str] = {}
-        
+
         # Track regeneration cycles for incremental commits
         self.regeneration_cycles = 0
-        
+
         # Track run statistics for reporting
         self.run_start_time = datetime.now()
         self.total_problems_fixed = 0
@@ -697,7 +697,7 @@ class ClaudeAgentFarm:
         self.git_remote: str = getattr(self, "git_remote", "origin")
         self._cleanup_registered = False
         self.state_file = self.project_path / MONITOR_STATE_FILE
-        
+
         # Signal handling for double Ctrl-C
         self._last_sigint_time: Optional[float] = None
         self._force_kill_threshold = 3.0  # seconds
@@ -719,7 +719,7 @@ class ClaudeAgentFarm:
     def _signal_handler(self, sig: Any, frame: Any) -> None:
         """Handle shutdown signals gracefully with force-kill on double tap"""
         current_time = time.time()
-        
+
         # Check if this is a SIGINT (Ctrl-C)
         if sig == signal.SIGINT:
             # Check for double tap
@@ -760,23 +760,23 @@ class ClaudeAgentFarm:
         if not claude_dir.exists():
             console.print("[yellow]No Claude Code directory found to backup[/yellow]")
             return None
-        
+
         try:
             # Create backup directory in project
             backup_dir = self.project_path / ".claude_agent_farm_backups"
             backup_dir.mkdir(exist_ok=True)
-            
+
             # Create timestamped backup filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_type = "full" if self.full_backup else "essential"
             backup_file = backup_dir / f"claude_backup_{backup_type}_{timestamp}.tar.gz"
-            
+
             # Create compressed backup
             import tarfile
-            
+
             if self.full_backup:
                 console.print("[dim]Creating FULL backup of ~/.claude directory (this may take a while)...[/dim]")
-                
+
                 with tarfile.open(backup_file, "w:gz") as tar:
                     # Use filter to preserve all metadata
                     def reset_ids(tarinfo):
@@ -785,36 +785,36 @@ class ClaudeAgentFarm:
                         tarinfo.uid = os.getuid()
                         tarinfo.gid = os.getgid()
                         return tarinfo
-                    
+
                     tar.add(claude_dir, arcname="claude", filter=reset_ids)
-                
+
                 size_mb = backup_file.stat().st_size / (1024 * 1024)
                 console.print(f"[green]✓ Full backup completed: {backup_file.name} ({size_mb:.1f} MB)[/green]")
             else:
                 console.print("[dim]Creating backup of essential Claude settings...[/dim]")
-                
+
                 with tarfile.open(backup_file, "w:gz") as tar:
                     # Filter to preserve metadata
                     def reset_ids(tarinfo):
                         tarinfo.uid = os.getuid()
                         tarinfo.gid = os.getgid()
                         return tarinfo
-                    
+
                     # Add settings.json if it exists
                     settings_file = claude_dir / "settings.json"
                     if settings_file.exists():
                         tar.add(settings_file, arcname="claude/settings.json", filter=reset_ids)
-                    
+
                     # Add ide directory (usually empty or small)
                     ide_dir = claude_dir / "ide"
                     if ide_dir.exists():
                         tar.add(ide_dir, arcname="claude/ide", filter=reset_ids)
-                    
+
                     # Add statsig directory (small, contains feature flags)
                     statsig_dir = claude_dir / "statsig"
                     if statsig_dir.exists():
                         tar.add(statsig_dir, arcname="claude/statsig", filter=reset_ids)
-                    
+
                     # Optionally add todos (usually small)
                     todos_dir = claude_dir / "todos"
                     if todos_dir.exists():
@@ -824,17 +824,17 @@ class ClaudeAgentFarm:
                             tar.add(todos_dir, arcname="claude/todos", filter=reset_ids)
                         else:
                             console.print(f"[dim]Skipping todos directory ({todos_size / 1024 / 1024:.1f} MB)[/dim]")
-                    
+
                     # Skip projects directory - it's just caches
                     console.print("[dim]Skipping projects/ directory (caches)[/dim]")
-                
+
                 # Get backup size
                 size_kb = backup_file.stat().st_size / 1024
                 console.print(f"[green]✓ Backed up Claude settings to {backup_file.name} ({size_kb:.1f} KB)[/green]")
-            
+
             # Clean up old backups (keep last 10)
             self._cleanup_old_backups(backup_dir, keep_count=10)
-            
+
             return str(backup_file)
         except Exception as e:
             console.print(f"[red]Error: Could not backup Claude directory: {e}[/red]")
@@ -845,40 +845,40 @@ class ClaudeAgentFarm:
         try:
             # Find all backup files (both essential and full)
             backups = sorted(backup_dir.glob("claude_backup_*.tar.gz"), key=lambda p: p.stat().st_mtime, reverse=True)
-            
+
             # Calculate total size and remove old backups based on both count and size limits
             total_size_bytes = 0
             max_size_bytes = max_total_mb * 1024 * 1024
-            
+
             backups_to_keep = []
             backups_to_remove = []
-            
+
             for i, backup in enumerate(backups):
                 backup_size = backup.stat().st_size
-                
+
                 # Keep backup if we're under both the count limit and size limit
                 if i < keep_count and total_size_bytes + backup_size <= max_size_bytes:
                     total_size_bytes += backup_size
                     backups_to_keep.append(backup)
                 else:
                     backups_to_remove.append(backup)
-            
+
             # Always keep at least the most recent backup
             if not backups_to_keep and backups:
                 backups_to_keep.append(backups[0])
                 backups_to_remove = backups[1:]
-            
+
             # Remove old backups
             for old_backup in backups_to_remove:
                 size_mb = old_backup.stat().st_size / (1024 * 1024)
                 old_backup.unlink()
                 console.print(f"[dim]Removed old backup: {old_backup.name} ({size_mb:.1f} MB)[/dim]")
-            
+
             # Report current backup storage status
             if backups_to_keep:
                 total_mb = total_size_bytes / (1024 * 1024)
                 console.print(f"[dim]Backup storage: {len(backups_to_keep)} files, {total_mb:.1f} MB total[/dim]")
-                
+
         except Exception as e:
             console.print(f"[yellow]Warning: Could not clean up old backups: {e}[/yellow]")
 
@@ -888,43 +888,44 @@ class ClaudeAgentFarm:
             # If no backup path provided, use the most recent one
             if backup_path is None:
                 backup_path = self.settings_backup_path
-            
+
             if not backup_path:
                 console.print("[red]No backup path available[/red]")
                 return False
-            
+
             backup_file = Path(backup_path)
             if not backup_file.exists():
                 console.print(f"[red]Backup file not found: {backup_path}[/red]")
                 return False
-            
+
             claude_dir = Path.home() / ".claude"
-            
+
             # For partial backups, we don't need to remove the entire directory
             # Just extract over existing files
             try:
                 # Ensure claude directory exists
                 claude_dir.mkdir(exist_ok=True)
-                
+
                 # Save original metadata of existing files
                 existing_metadata = {}
                 for item in claude_dir.rglob("*"):
                     if item.exists():
                         stat = item.stat()
                         existing_metadata[str(item)] = {
-                            'mode': stat.st_mode,
-                            'mtime': stat.st_mtime,
-                            'atime': stat.st_atime,
+                            "mode": stat.st_mode,
+                            "mtime": stat.st_mtime,
+                            "atime": stat.st_atime,
                         }
-                
+
                 # Extract backup
                 import tarfile
+
                 console.print(f"[dim]Restoring from {backup_file.name}...[/dim]")
-                
+
                 with tarfile.open(backup_file, "r:gz") as tar:
                     # Extract with numeric owner to preserve permissions
                     tar.extractall(path=claude_dir.parent, numeric_owner=True)
-                    
+
                     # Get list of extracted files to preserve their times
                     for member in tar.getmembers():
                         if member.isfile():
@@ -932,17 +933,17 @@ class ClaudeAgentFarm:
                             if extracted_path.exists():
                                 # Preserve the modification time from the archive
                                 os.utime(extracted_path, (member.mtime, member.mtime))
-                
+
                 # Ensure proper permissions on sensitive files
                 settings_file = claude_dir / "settings.json"
                 if settings_file.exists():
                     # Ensure settings.json has appropriate permissions (readable by user only)
                     os.chmod(settings_file, 0o600)
-                
+
                 # Set ownership to current user for all restored files
                 uid = os.getuid()
                 gid = os.getgid()
-                
+
                 for root, dirs, files in os.walk(claude_dir):
                     for d in dirs:
                         path = Path(root) / d
@@ -952,36 +953,36 @@ class ClaudeAgentFarm:
                         path = Path(root) / f
                         with contextlib.suppress(Exception):
                             os.chown(path, uid, gid)
-                
+
                 console.print("[green]✓ Restored Claude settings from backup[/green]")
-                
+
                 # Check and fix permissions after restore
                 self._check_claude_permissions()
-                
+
                 return True
-                
+
             except Exception as e:
                 console.print(f"[red]Error during restore: {e}[/red]")
                 return False
-                
+
         except Exception as e:
             console.print(f"[red]Error restoring Claude settings: {e}[/red]")
             return False
 
     def _copy_best_practices_guides(self) -> None:
         """Copy best practices guides to the project folder if configured"""
-        best_practices_files = getattr(self, 'best_practices_files', [])
+        best_practices_files = getattr(self, "best_practices_files", [])
         if not best_practices_files:
             return
-            
+
         # Ensure it's a list
         if isinstance(best_practices_files, str):
             best_practices_files = [best_practices_files]
-            
+
         # Copy to project's best_practices_guides folder
         dest_dir = self.project_path / "best_practices_guides"
         dest_dir.mkdir(exist_ok=True)
-        
+
         # Copy specified files
         copied_files = []
         for file_path in best_practices_files:
@@ -989,15 +990,16 @@ class ClaudeAgentFarm:
             if not source_file.exists():
                 console.print(f"[yellow]Best practices file not found: {source_file}[/yellow]")
                 continue
-                
+
             dest_file = dest_dir / source_file.name
             try:
                 import shutil
+
                 shutil.copy2(source_file, dest_file)
                 copied_files.append(source_file.name)
             except Exception as e:
                 console.print(f"[yellow]Failed to copy {source_file.name}: {e}[/yellow]")
-        
+
         if copied_files:
             console.print(f"[green]✓ Copied {len(copied_files)} best practices guide(s) to project[/green]")
             for filename in copied_files:
@@ -1021,43 +1023,45 @@ class ClaudeAgentFarm:
                 Path(__file__).parent / "prompts" / f"default_prompt_{getattr(self, 'tech_stack', 'nextjs')}.txt",
                 Path(__file__).parent / "prompts" / "default_prompt.txt",
             ]
-            
+
             prompt_text = None
             for prompt_path in default_prompts:
                 if prompt_path.exists():
                     prompt_text = prompt_path.read_text().strip()
                     break
-            
+
             if not prompt_text:
-                raise ValueError("No prompt file specified and no default prompt found. Use --prompt-file to specify a prompt.")
-        
+                raise ValueError(
+                    "No prompt file specified and no default prompt found. Use --prompt-file to specify a prompt."
+                )
+
         # Substitute variables in the prompt
-        chunk_size = getattr(self, 'chunk_size', 50)
-        prompt_text = prompt_text.replace('{chunk_size}', str(chunk_size))
-        
+        chunk_size = getattr(self, "chunk_size", 50)
+        prompt_text = prompt_text.replace("{chunk_size}", str(chunk_size))
+
         # Future: could add more substitutions here
         # prompt_text = prompt_text.replace('{tech_stack}', getattr(self, 'tech_stack', 'generic'))
-        
+
         return prompt_text
-    
+
     def _calculate_dynamic_chunk_size(self) -> int:
         """Calculate optimal chunk size based on remaining lines in the problems file"""
         if not self.combined_file.exists():
-            return getattr(self, 'chunk_size', 50)
-        
+            return getattr(self, "chunk_size", 50)
+
         # Count total lines in problems file
         total_lines = line_count(self.combined_file)
-        
+
         # If file is small or empty, use minimum chunk size
         if total_lines < 100:
             return 10
-        
+
         # Calculate optimal chunk size: max(10, total_lines / agents / 2)
         # This ensures agents have work but not too much per iteration
         optimal_chunk = max(10, total_lines // self.agents // 2)
-        
+
         # Cap at configured maximum if specified
-        configured_chunk = getattr(self, 'chunk_size', 50)
+        configured_chunk = getattr(self, "chunk_size", 50)
         return min(optimal_chunk, configured_chunk)
 
     def regenerate_problems(self) -> None:
@@ -1069,23 +1073,17 @@ class ClaudeAgentFarm:
         console.rule("[yellow]Regenerating type-check and lint output")
 
         # Get commands from config or use defaults based on tech stack
-        tech_stack = getattr(self, 'tech_stack', 'nextjs')
-        
+        tech_stack = getattr(self, "tech_stack", "nextjs")
+
         # Default commands for different tech stacks
         default_commands = {
-            'nextjs': {
-                'type_check': ["bun", "run", "type-check"],
-                'lint': ["bun", "run", "lint"]
-            },
-            'python': {
-                'type_check': ["mypy", "."],
-                'lint': ["ruff", "check", "."]
-            }
+            "nextjs": {"type_check": ["bun", "run", "type-check"], "lint": ["bun", "run", "lint"]},
+            "python": {"type_check": ["mypy", "."], "lint": ["ruff", "check", "."]},
         }
-        
+
         # Use configured commands or fall back to defaults
-        commands = getattr(self, 'problem_commands', default_commands.get(tech_stack, default_commands['nextjs']))
-        
+        commands = getattr(self, "problem_commands", default_commands.get(tech_stack, default_commands["nextjs"]))
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
@@ -1100,11 +1098,11 @@ class ClaudeAgentFarm:
                 dir=self.project_path, prefix="combined_", suffix=".tmp", text=True
             )
             tmpfile_path = Path(tmpfile_name)
-            
+
             try:
-                with os.fdopen(tmpfile_fd, 'w') as tmpfile:
+                with os.fdopen(tmpfile_fd, "w") as tmpfile:
                     # Run type-check
-                    type_check_cmd = commands.get('type_check')
+                    type_check_cmd = commands.get("type_check")
                     if type_check_cmd:
                         tmpfile.write(f"$ {' '.join(type_check_cmd)}\n")
                         tmpfile.flush()
@@ -1113,18 +1111,16 @@ class ClaudeAgentFarm:
                         if not self.running:
                             raise KeyboardInterrupt()
 
-                        result = subprocess.run(
-                            type_check_cmd, stdout=tmpfile, stderr=subprocess.STDOUT, cwd=self.project_path
-                        )
+                        subprocess.run(type_check_cmd, stdout=tmpfile, stderr=subprocess.STDOUT, cwd=self.project_path)
                         # Ensure all output is written to disk
                         tmpfile.flush()
                         os.fsync(tmpfile.fileno())
-                        
+
                         # Small delay to ensure process cleanup
                         time.sleep(0.5)
 
                     # Run lint
-                    lint_cmd = commands.get('lint')
+                    lint_cmd = commands.get("lint")
                     if lint_cmd:
                         if type_check_cmd:  # Add spacing if we ran type-check
                             tmpfile.write("\n\n")
@@ -1135,11 +1131,11 @@ class ClaudeAgentFarm:
                         if not self.running:
                             raise KeyboardInterrupt()
 
-                        result = subprocess.run(lint_cmd, stdout=tmpfile, stderr=subprocess.STDOUT, cwd=self.project_path)  # noqa: F841
+                        subprocess.run(lint_cmd, stdout=tmpfile, stderr=subprocess.STDOUT, cwd=self.project_path)
                         # Ensure all output is written to disk
                         tmpfile.flush()
                         os.fsync(tmpfile.fileno())
-                
+
                 # File is now closed, safe to move
                 # Atomic rename (handle cross-filesystem moves)
                 try:
@@ -1157,16 +1153,16 @@ class ClaudeAgentFarm:
             progress.update(task, completed=True)
 
         # Count problems before and after
-        prev_count = getattr(self, '_last_problem_count', 0)
+        prev_count = getattr(self, "_last_problem_count", 0)
         count = line_count(self.combined_file)
         console.print(f"[green]✓ Generated {count} lines of problems[/green]")
-        
+
         # Track problems fixed (decrease in count)
         if prev_count > 0 and count < prev_count:
             problems_fixed = prev_count - count
             self.total_problems_fixed += problems_fixed
             console.print(f"[green]✓ Fixed {problems_fixed} problems this cycle[/green]")
-        
+
         # Store current count for next comparison
         self._last_problem_count = count
 
@@ -1237,10 +1233,10 @@ class ClaudeAgentFarm:
             remote = self.git_remote
             run(f"git push {remote} {branch}", check=False)
             console.print(f"[green]✓ Pushed commit with {count} current problems[/green]")
-            
+
             # Track commit for reporting
             self.total_commits_made += 1
-            
+
             # Display rich diff summary
             self._display_commit_diff()
         except subprocess.CalledProcessError:
@@ -1253,29 +1249,31 @@ class ClaudeAgentFarm:
             _, stdout, _ = run("git diff --stat HEAD~1..HEAD", capture=True, quiet=True)
             if not stdout.strip():
                 return
-            
+
             # Create a rich panel with the diff information
             console.print()  # Add space before
-            console.print(Panel(
-                stdout.strip(),
-                title="[bold cyan]📊 Commit Diff Summary[/bold cyan]",
-                border_style="cyan",
-                box=box.ROUNDED
-            ))
-            
+            console.print(
+                Panel(
+                    stdout.strip(),
+                    title="[bold cyan]📊 Commit Diff Summary[/bold cyan]",
+                    border_style="cyan",
+                    box=box.ROUNDED,
+                )
+            )
+
             # Get short summary of changes
             _, stdout, _ = run("git diff --shortstat HEAD~1..HEAD", capture=True, quiet=True)
             if stdout.strip():
                 console.print(f"[dim]{stdout.strip()}[/dim]")
-            
+
             # Get list of changed files
             _, stdout, _ = run("git diff --name-status HEAD~1..HEAD", capture=True, quiet=True)
             if stdout.strip():
-                lines = stdout.strip().split('\n')
-                modified_count = sum(1 for line in lines if line.startswith('M'))
-                added_count = sum(1 for line in lines if line.startswith('A'))
-                deleted_count = sum(1 for line in lines if line.startswith('D'))
-                
+                lines = stdout.strip().split("\n")
+                modified_count = sum(1 for line in lines if line.startswith("M"))
+                added_count = sum(1 for line in lines if line.startswith("A"))
+                deleted_count = sum(1 for line in lines if line.startswith("D"))
+
                 summary_parts = []
                 if modified_count > 0:
                     summary_parts.append(f"[yellow]{modified_count} modified[/yellow]")
@@ -1283,19 +1281,19 @@ class ClaudeAgentFarm:
                     summary_parts.append(f"[green]{added_count} added[/green]")
                 if deleted_count > 0:
                     summary_parts.append(f"[red]{deleted_count} deleted[/red]")
-                
+
                 if summary_parts:
                     console.print(f"Files: {', '.join(summary_parts)}")
-            
+
             console.print()  # Add space after
-            
+
         except Exception as e:
             # Don't fail the whole operation if diff display fails
             console.print(f"[dim]Could not display diff summary: {e}[/dim]")
 
     def _wait_for_shell_prompt(self, pane_target: str, timeout: int = 30, ignore_shutdown: bool = False) -> bool:
         """Wait for a shell prompt to appear in the pane
-        
+
         Args:
             pane_target: The tmux pane to check
             timeout: Maximum time to wait in seconds
@@ -1314,7 +1312,7 @@ class ClaudeAgentFarm:
         # the captured pane output.  These variables keep track of the probe
         # state for the duration of the wait loop.
         probe_attempted = False  # Whether we've sent the probe command yet
-        probe_marker: str = ""   # The unique string we expect to see echoed back
+        probe_marker: str = ""  # The unique string we expect to see echoed back
 
         # Get the last part of the project path for detection
         project_dir_name = self.project_path.name
@@ -1376,6 +1374,7 @@ class ClaudeAgentFarm:
             if (not probe_attempted) and (elapsed > 3):
                 probe_attempted = True
                 from random import randint  # local import to avoid top-of-file churn
+
                 probe_marker = f"AGENT_FARM_READY_{randint(100000, 999999)}"
                 tmux_send(pane_target, f"echo {probe_marker}", enter=True, update_heartbeat=False)
                 # Give the shell a brief moment to execute the probe before we
@@ -1486,7 +1485,7 @@ class ClaudeAgentFarm:
         # Enable mouse support if configured
         if self.tmux_mouse:
             run(f"tmux set-option -t {self.session} -g mouse on", quiet=True)
-        
+
         # Enable pane titles for context display
         run(f"tmux set-option -t {self.session} -g pane-border-status top", quiet=True)
         run(f"tmux set-option -t {self.session} -g pane-border-format ' #{{pane_title}} '", quiet=True)
@@ -1553,12 +1552,15 @@ class ClaudeAgentFarm:
             if target_pane is not None:
                 # Send /clear to each agent pane
                 reset_cmd += f"send-keys -t {target_pane} '/clear' Enter \\; "
-        
+
         if reset_cmd:
             # Remove the trailing " \; "
             reset_cmd = reset_cmd[:-4]
             # Bind to Ctrl+r in the controller window
-            run(f"tmux bind-key -T root -n C-r \\; display-message 'Sending /clear to all agents...' \\; {reset_cmd}", quiet=True)
+            run(
+                f"tmux bind-key -T root -n C-r \\; display-message 'Sending /clear to all agents...' \\; {reset_cmd}",
+                quiet=True,
+            )
             console.print("[green]✓ Context-reset macro bound to Ctrl+R (broadcasts /clear to all agents)[/green]")
 
         # Register cleanup handler
@@ -1607,17 +1609,19 @@ class ClaudeAgentFarm:
         """Check and fix permissions on Claude settings files"""
         claude_dir = Path.home() / ".claude"
         settings_file = claude_dir / "settings.json"
-        
+
         try:
             if settings_file.exists():
                 # Get current permissions
                 current_mode = settings_file.stat().st_mode & 0o777
-                
+
                 # Check if permissions are too open
                 if current_mode != 0o600:
-                    console.print(f"[yellow]Fixing permissions on {settings_file.name} (was {oct(current_mode)})[/yellow]")
+                    console.print(
+                        f"[yellow]Fixing permissions on {settings_file.name} (was {oct(current_mode)})[/yellow]"
+                    )
                     os.chmod(settings_file, 0o600)
-                
+
                 # Ensure we own the file
                 stat_info = settings_file.stat()
                 if stat_info.st_uid != os.getuid():
@@ -1627,16 +1631,16 @@ class ClaudeAgentFarm:
                     except PermissionError:
                         console.print("[red]Could not change ownership - may need sudo[/red]")
                         return False
-            
+
             # Check directory permissions
             if claude_dir.exists():
                 dir_mode = claude_dir.stat().st_mode & 0o777
                 if dir_mode not in (0o700, 0o755):
                     console.print(f"[yellow]Fixing permissions on .claude directory (was {oct(dir_mode)})[/yellow]")
                     os.chmod(claude_dir, 0o700)
-            
+
             return True
-            
+
         except Exception as e:
             console.print(f"[red]Error checking permissions: {e}[/red]")
             return False
@@ -1661,7 +1665,7 @@ class ClaudeAgentFarm:
         # Navigate and start Claude Code
         # Quote the path so directories with spaces or shell metacharacters work
         tmux_send(pane_target, f"cd {shlex.quote(str(self.project_path))}")
-        
+
         # CRITICAL: Wait a couple seconds for cd to complete and shell to stabilize
         # This prevents race conditions and ensures we're in the right directory
         console.print(f"[dim]Agent {agent_id:02d}: Waiting 2s after cd before launching cc...[/dim]")
@@ -1730,8 +1734,10 @@ class ClaudeAgentFarm:
                 # Check for readiness FIRST before checking for errors
                 claude_started_successfully = True
                 break
-            elif self.monitor and len(content.strip()) > 100 and (
-                self.monitor.has_settings_error(content) or self.monitor.has_welcome_screen(content)
+            elif (
+                self.monitor
+                and len(content.strip()) > 100
+                and (self.monitor.has_settings_error(content) or self.monitor.has_welcome_screen(content))
             ):
                 # Only check for errors if we have substantial content (>100 chars)
                 console.print(
@@ -1744,11 +1750,11 @@ class ClaudeAgentFarm:
                 time.sleep(0.5)
                 tmux_send(pane_target, "\x03")  # Send Ctrl+C again to be sure
                 time.sleep(0.5)
-                
+
                 # Send exit command in case it's still in Claude Code
                 tmux_send(pane_target, "/exit")
                 time.sleep(1.0)
-                
+
                 # Wait for shell prompt to ensure Claude Code has fully exited
                 if not self._wait_for_shell_prompt(pane_target, timeout=10, ignore_shutdown=True):
                     # If still not at shell, try harder
@@ -1756,7 +1762,7 @@ class ClaudeAgentFarm:
                     time.sleep(1.0)
                     tmux_send(pane_target, "exit")  # Try shell exit command
                     time.sleep(1.0)
-                
+
                 # NEVER EVER kill all claude-code processes! This would kill ALL working agents!
                 # Just let this specific instance clean up naturally
                 time.sleep(2.0)  # Give time for this instance to fully exit
@@ -1767,7 +1773,7 @@ class ClaudeAgentFarm:
                         console.print(f"[green]Settings restored for agent {agent_id} - retrying launch[/green]")
                         # Wait a bit more to ensure everything is settled
                         time.sleep(2.0)
-                        
+
                         # Return to shell and retry
                         if self._wait_for_shell_prompt(pane_target, timeout=10, ignore_shutdown=True):
                             # Re-acquire lock before retrying
@@ -1817,18 +1823,20 @@ class ClaudeAgentFarm:
 
         # Send prompt with unique seed for randomization
         seed = randint(100000, 999999)
-        
+
         # Calculate dynamic chunk size and update prompt text if needed
         dynamic_chunk_size = self._calculate_dynamic_chunk_size()
         current_prompt = self.prompt_text
-        
+
         # If dynamic chunk size differs from configured, update the prompt
-        configured_chunk = getattr(self, 'chunk_size', 50)
+        configured_chunk = getattr(self, "chunk_size", 50)
         if dynamic_chunk_size != configured_chunk:
-            current_prompt = current_prompt.replace(f'{{{configured_chunk}}}', f'{{{dynamic_chunk_size}}}')
-            current_prompt = current_prompt.replace(f'{configured_chunk}', str(dynamic_chunk_size))
-            console.print(f"[dim]Agent {agent_id:02d}: Dynamic chunk size: {dynamic_chunk_size} (was {configured_chunk})[/dim]")
-        
+            current_prompt = current_prompt.replace(f"{{{configured_chunk}}}", f"{{{dynamic_chunk_size}}}")
+            current_prompt = current_prompt.replace(f"{configured_chunk}", str(dynamic_chunk_size))
+            console.print(
+                f"[dim]Agent {agent_id:02d}: Dynamic chunk size: {dynamic_chunk_size} (was {configured_chunk})[/dim]"
+            )
+
         # Use regex to handle variations like "random chunks of 50 lines"
         salted_prompt = re.sub(
             r"random chunks(\b.*?\b)?",
@@ -1841,9 +1849,9 @@ class ClaudeAgentFarm:
         # Send prompt as a single message
         # CRITICAL: Use tmux's literal mode to send the entire prompt correctly
         # This avoids complex line-by-line sending that can cause issues
-        prompt_preview = textwrap.shorten(salted_prompt.replace('\n', ' '), width=50, placeholder="...")
+        prompt_preview = textwrap.shorten(salted_prompt.replace("\n", " "), width=50, placeholder="...")
         console.print(f"[dim]Agent {agent_id:02d}: Sending {len(salted_prompt)} chars: {prompt_preview}[/dim]")
-        
+
         # Send the entire prompt at once using literal mode
         tmux_send(pane_target, salted_prompt, enter=True)
 
@@ -1856,7 +1864,9 @@ class ClaudeAgentFarm:
         if self.monitor and self.monitor.is_claude_working(verify_content):
             console.print(f"[green]✓ Agent {agent_id:02d}: Claude Code is processing the prompt[/green]")
         else:
-            console.print(f"[yellow]⚠ Agent {agent_id:02d}: Claude Code may not have received the prompt properly[/yellow]")
+            console.print(
+                f"[yellow]⚠ Agent {agent_id:02d}: Claude Code may not have received the prompt properly[/yellow]"
+            )
 
         if self.monitor:
             self.monitor.agents[agent_id]["status"] = "starting"
@@ -1886,7 +1896,9 @@ class ClaudeAgentFarm:
                     if last_launch_ok:
                         # Previous launch was OK, but this one failed - double stagger
                         current_stagger = min(current_stagger * 2, 60.0)  # Cap at 60 seconds
-                        console.print(f"[yellow]Launch failure detected - increasing stagger to {current_stagger}s[/yellow]")
+                        console.print(
+                            f"[yellow]Launch failure detected - increasing stagger to {current_stagger}s[/yellow]"
+                        )
                     last_launch_ok = False
                 else:
                     successful_launches += 1
@@ -1964,19 +1976,25 @@ class ClaudeAgentFarm:
                                 agent["restart_count"] += 1
                                 agent["last_restart"] = datetime.now()
                                 self.monitor.agents[agent_id] = agent
-                            
+
                             # Track restarts for reporting
                             self.agent_restart_count += 1
-                            
+
                             # Track cycles for incremental commits
                             if self.commit_every and agent["cycles"] > 0:
                                 # Check if all agents have completed at least one cycle
                                 all_cycles = [self.monitor.agents[i]["cycles"] for i in range(self.agents)]
                                 min_cycles = min(all_cycles) if all_cycles else 0
-                                
+
                                 # If we've completed N full cycles across all agents, commit
-                                if min_cycles > 0 and min_cycles % self.commit_every == 0 and min_cycles > self.regeneration_cycles:
-                                    console.print(f"[green]Completed {self.commit_every} regeneration cycles - committing changes[/green]")
+                                if (
+                                    min_cycles > 0
+                                    and min_cycles % self.commit_every == 0
+                                    and min_cycles > self.regeneration_cycles
+                                ):
+                                    console.print(
+                                        f"[green]Completed {self.commit_every} regeneration cycles - committing changes[/green]"
+                                    )
                                     self.regeneration_cycles = min_cycles
                                     # Regenerate problems file to update progress
                                     self.regenerate_problems()
@@ -1995,7 +2013,7 @@ class ClaudeAgentFarm:
         # Display startup banner with custom box style
         # Wrap long project paths for better display
         wrapped_path = textwrap.fill(str(self.project_path), width=60, subsequent_indent="         ")
-        
+
         banner_text = "[bold cyan]Claude Code Agent Farm[/bold cyan]\n"
         banner_text += f"Project: {wrapped_path}\n"
         banner_text += f"Agents: {self.agents}\n"
@@ -2003,7 +2021,7 @@ class ClaudeAgentFarm:
         banner_text += f"Auto-restart: {'enabled' if self.auto_restart else 'disabled'}"
         if self.commit_every:
             banner_text += f"\nIncremental commits: every {self.commit_every} cycles"
-        
+
         console.print(
             Panel.fit(
                 banner_text,
@@ -2014,10 +2032,10 @@ class ClaudeAgentFarm:
 
         # Backup Claude settings before starting
         self.settings_backup_path = self._backup_claude_settings()
-        
+
         # Check current permissions are correct
         self._check_claude_permissions()
-        
+
         # Copy best practices guides if configured
         self._copy_best_practices_guides()
 
@@ -2076,7 +2094,7 @@ class ClaudeAgentFarm:
         if hasattr(self, "state_file") and self.state_file.exists():
             self.state_file.unlink()
             console.print("[green]✓ Monitor state file cleaned up[/green]")
-        
+
         # Clean up heartbeat files
         heartbeats_dir = self.project_path / ".heartbeats"
         if heartbeats_dir.exists():
@@ -2091,7 +2109,7 @@ class ClaudeAgentFarm:
 
         # Generate HTML report before final cleanup
         self.generate_html_report()
-        
+
         # Restore font size if we changed it
         if hasattr(self, "_zoom_adjusted") and self._zoom_adjusted:
             console.print("[dim]Note: You may want to restore zoom with Ctrl/Cmd + 0[/dim]")
@@ -2117,44 +2135,48 @@ class ClaudeAgentFarm:
             hours, remainder = divmod(int(run_duration.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
             duration_str = f"{hours}h {minutes}m {seconds}s"
-            
+
             # Gather agent statistics if monitor is available
             agent_stats = []
             total_cycles = 0
             if self.monitor:
                 for agent_id, agent in self.monitor.agents.items():
-                    agent_stats.append({
-                        "id": agent_id,
-                        "status": agent["status"],
-                        "cycles": agent["cycles"],
-                        "errors": agent["errors"],
-                        "restarts": agent["restart_count"],
-                        "context": agent["last_context"],
-                    })
+                    agent_stats.append(
+                        {
+                            "id": agent_id,
+                            "status": agent["status"],
+                            "cycles": agent["cycles"],
+                            "errors": agent["errors"],
+                            "restarts": agent["restart_count"],
+                            "context": agent["last_context"],
+                        }
+                    )
                     total_cycles += agent["cycles"]
-            
+
             # Count initial problems
             initial_problems = 0
             if self.combined_file.exists():
                 initial_problems = line_count(self.combined_file)
-            
+
             # Generate HTML using Rich's console
             html_console = Console(record=True, width=120)
-            
+
             # Title
-            html_console.print(Panel.fit(
-                f"[bold cyan]Claude Code Agent Farm - Run Report[/bold cyan]\n"
-                f"Project: {self.project_path.name}\n"
-                f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                border_style="cyan"
-            ))
-            
+            html_console.print(
+                Panel.fit(
+                    f"[bold cyan]Claude Code Agent Farm - Run Report[/bold cyan]\n"
+                    f"Project: {self.project_path.name}\n"
+                    f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    border_style="cyan",
+                )
+            )
+
             # Summary statistics
             html_console.print("\n[bold]Run Summary[/bold]")
             summary_table = Table(box=box.ROUNDED)
             summary_table.add_column("Metric", style="cyan")
             summary_table.add_column("Value", style="green")
-            
+
             summary_table.add_row("Duration", duration_str)
             summary_table.add_row("Agents Used", str(self.agents))
             summary_table.add_row("Total Cycles", str(total_cycles))
@@ -2164,9 +2186,9 @@ class ClaudeAgentFarm:
             summary_table.add_row("Initial Problems", str(initial_problems))
             remaining_problems = initial_problems - self.total_problems_fixed
             summary_table.add_row("Remaining Problems", str(max(0, remaining_problems)))
-            
+
             html_console.print(summary_table)
-            
+
             # Agent details
             if agent_stats:
                 html_console.print("\n[bold]Agent Performance[/bold]")
@@ -2177,7 +2199,7 @@ class ClaudeAgentFarm:
                 agent_table.add_column("Context %", style="magenta", width=10)
                 agent_table.add_column("Errors", style="red", width=8)
                 agent_table.add_column("Restarts", style="orange1", width=10)
-                
+
                 for agent in sorted(agent_stats, key=lambda x: x["id"]):
                     status_color = {
                         "working": "green",
@@ -2185,39 +2207,39 @@ class ClaudeAgentFarm:
                         "idle": "yellow",
                         "error": "red",
                         "starting": "yellow",
-                        "unknown": "dim"
+                        "unknown": "dim",
                     }.get(agent["status"], "white")
-                    
+
                     agent_table.add_row(
                         f"Agent {agent['id']:02d}",
                         f"[{status_color}]{agent['status']}[/]",
                         str(agent["cycles"]),
                         f"{agent['context']}%",
                         str(agent["errors"]),
-                        str(agent["restarts"])
+                        str(agent["restarts"]),
                     )
-                
+
                 html_console.print(agent_table)
-            
+
             # Configuration used
             html_console.print("\n[bold]Configuration[/bold]")
             config_items = [
-                ("Tech Stack", getattr(self, 'tech_stack', 'unknown')),
-                ("Chunk Size", str(getattr(self, 'chunk_size', 50))),
+                ("Tech Stack", getattr(self, "tech_stack", "unknown")),
+                ("Chunk Size", str(getattr(self, "chunk_size", 50))),
                 ("Context Threshold", f"{self.context_threshold}%"),
                 ("Idle Timeout", f"{self.idle_timeout}s"),
                 ("Auto Restart", "Yes" if self.auto_restart else "No"),
                 ("Skip Regenerate", "Yes" if self.skip_regenerate else "No"),
                 ("Skip Commit", "Yes" if self.skip_commit else "No"),
             ]
-            
+
             for key, value in config_items:
                 html_console.print(f"  {key}: [cyan]{value}[/cyan]")
-            
+
             # Save HTML report
             report_file = self.project_path / f"agent_farm_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             html_content = html_console.export_html(inline_styles=True)
-            
+
             # Add some custom CSS for better formatting
             custom_css = """
             <style>
@@ -2237,16 +2259,16 @@ class ClaudeAgentFarm:
                 }
             </style>
             """
-            
+
             # Insert custom CSS after <head>
             html_content = html_content.replace("<head>", f"<head>{custom_css}")
-            
+
             report_file.write_text(html_content)
             console.print(f"\n[green]✓ Generated run report: {report_file.name}[/green]")
-            
+
         except Exception as e:
             console.print(f"[yellow]Warning: Could not generate HTML report: {e}[/yellow]")
-    
+
     def write_monitor_state(self) -> None:
         """Write current monitor state to shared file"""
         if not self.monitor:
@@ -2260,7 +2282,9 @@ class ClaudeAgentFarm:
                 "last_activity": a["last_activity"].isoformat(),
                 "last_restart": a["last_restart"].isoformat() if a.get("last_restart") is not None else None,
                 "last_heartbeat": a["last_heartbeat"].isoformat() if a.get("last_heartbeat") is not None else None,
-                "cycle_start_time": a["cycle_start_time"].isoformat() if a.get("cycle_start_time") is not None else None,
+                "cycle_start_time": a["cycle_start_time"].isoformat()
+                if a.get("cycle_start_time") is not None
+                else None,
             }
 
         state_data = {
@@ -2618,10 +2642,10 @@ def doctor(
             box=box.DOUBLE,
         )
     )
-    
+
     issues_found = 0
     warnings_found = 0
-    
+
     # Helper function to check if command exists
     def command_exists(cmd: str) -> bool:
         """Check if a command exists in PATH"""
@@ -2630,7 +2654,7 @@ def doctor(
             return result.returncode == 0
         except Exception:
             return False
-    
+
     # 1. Check Python version
     console.print("\n[bold]1. Python Version[/bold]")
     py_version = sys.version_info
@@ -2639,7 +2663,7 @@ def doctor(
     else:
         console.print(f"  ❌ Python {py_version.major}.{py_version.minor}.{py_version.micro} (requires 3.13+)")
         issues_found += 1
-    
+
     # 2. Check tmux
     console.print("\n[bold]2. tmux Installation[/bold]")
     if command_exists("tmux"):
@@ -2652,7 +2676,7 @@ def doctor(
     else:
         console.print("  ❌ tmux not found in PATH")
         issues_found += 1
-    
+
     # 3. Check cc alias
     console.print("\n[bold]3. Claude Code Alias[/bold]")
     # Check in bash
@@ -2663,7 +2687,7 @@ def doctor(
             bash_has_cc = True
     except Exception:
         pass
-    
+
     # Check in zsh if it exists
     zsh_has_cc = False
     if Path(os.path.expanduser("~/.zshrc")).exists():
@@ -2673,7 +2697,7 @@ def doctor(
                 zsh_has_cc = True
         except Exception:
             pass
-    
+
     if bash_has_cc or zsh_has_cc:
         console.print("  ✅ cc alias configured correctly")
         if bash_has_cc:
@@ -2682,9 +2706,9 @@ def doctor(
             console.print("     - Found in zsh")
     else:
         console.print("  ❌ cc alias not configured or incorrect")
-        console.print("     Expected: alias cc=\"ENABLE_BACKGROUND_TASKS=1 claude --dangerously-skip-permissions\"")
+        console.print('     Expected: alias cc="ENABLE_BACKGROUND_TASKS=1 claude --dangerously-skip-permissions"')
         issues_found += 1
-    
+
     # 4. Check Claude Code installation
     console.print("\n[bold]4. Claude Code Installation[/bold]")
     if command_exists("claude"):
@@ -2692,7 +2716,7 @@ def doctor(
     else:
         console.print("  ❌ claude command not found in PATH")
         issues_found += 1
-    
+
     # 5. Check Anthropic API key
     console.print("\n[bold]5. Anthropic API Configuration[/bold]")
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -2716,7 +2740,7 @@ def doctor(
         else:
             console.print("  ⚠️  No API key in environment and no Claude settings found")
             warnings_found += 1
-    
+
     # 6. Check git
     console.print("\n[bold]6. Git Configuration[/bold]")
     if command_exists("git"):
@@ -2729,7 +2753,7 @@ def doctor(
     else:
         console.print("  ❌ git not found in PATH")
         issues_found += 1
-    
+
     # 7. Check uv (package manager)
     console.print("\n[bold]7. uv Package Manager[/bold]")
     if command_exists("uv"):
@@ -2742,13 +2766,13 @@ def doctor(
     else:
         console.print("  ⚠️  uv not found (recommended for Python projects)")
         warnings_found += 1
-    
+
     # 8. Check project-specific tools if path provided
     if path:
         project_path = Path(path).expanduser().resolve()
         if project_path.is_dir():
             console.print(f"\n[bold]8. Project-Specific Checks ({project_path.name})[/bold]")
-            
+
             # Check for config files
             config_files = list(project_path.glob("configs/*.json"))
             if config_files:
@@ -2756,7 +2780,7 @@ def doctor(
             else:
                 console.print("  ⚠️  No config files found in configs/")
                 warnings_found += 1
-            
+
             # Check for prompt files
             prompt_files = list(project_path.glob("prompts/*.txt"))
             if prompt_files:
@@ -2764,7 +2788,7 @@ def doctor(
             else:
                 console.print("  ⚠️  No prompt files found in prompts/")
                 warnings_found += 1
-            
+
             # Try to detect project type and check tools
             if (project_path / "package.json").exists():
                 console.print("  📦 Detected Node.js project")
@@ -2774,7 +2798,7 @@ def doctor(
                     else:
                         console.print(f"     ⚠️  {tool} not found")
                         warnings_found += 1
-            
+
             if (project_path / "pyproject.toml").exists():
                 console.print("  🐍 Detected Python project")
                 for tool in ["python3", "mypy", "ruff"]:
@@ -2787,7 +2811,7 @@ def doctor(
             console.print("\n[bold]8. Project Path[/bold]")
             console.print(f"  ❌ Invalid project path: {path}")
             issues_found += 1
-    
+
     # 9. Check permissions
     console.print("\n[bold]9. File Permissions[/bold]")
     claude_dir = Path.home() / ".claude"
@@ -2799,7 +2823,7 @@ def doctor(
         else:
             console.print(f"  ⚠️  ~/.claude permissions: {dir_perms} (expected 700)")
             warnings_found += 1
-        
+
         # Check settings.json permissions
         settings_file = claude_dir / "settings.json"
         if settings_file.exists():
@@ -2809,10 +2833,10 @@ def doctor(
             else:
                 console.print(f"  ⚠️  settings.json permissions: {file_perms} (expected 600)")
                 warnings_found += 1
-    
+
     # 10. Check for common issues
     console.print("\n[bold]10. Common Issues Check[/bold]")
-    
+
     # Check for stale lock files
     lock_file = Path.home() / ".claude" / ".agent_farm_launch.lock"
     if lock_file.exists():
@@ -2825,7 +2849,7 @@ def doctor(
             console.print("  ✅ No stale lock files")
     else:
         console.print("  ✅ No lock files present")
-    
+
     # Summary
     console.print("\n" + "─" * 60)
     if issues_found == 0 and warnings_found == 0:
@@ -2837,7 +2861,7 @@ def doctor(
     else:
         console.print(f"\n[bold yellow]⚠️  Found {warnings_found} warnings (no critical issues)[/bold yellow]")
         console.print("The agent farm should work, but fixing warnings is recommended.")
-    
+
     # Exit with appropriate code
     if issues_found > 0:
         raise typer.Exit(1)
@@ -2847,18 +2871,18 @@ def doctor(
 
 @app.command()
 def install_completion(
-    shell: Optional[str] = typer.Option(None, help="Shell to install completion for. Auto-detected if not provided.")
+    shell: Optional[str] = typer.Option(None, help="Shell to install completion for. Auto-detected if not provided."),
 ) -> None:
     """Install shell completion for claude-code-agent-farm command"""
     import platform
     import subprocess
-    
+
     # Auto-detect shell if not provided
     if shell is None:
         if platform.system() == "Windows":
             console.print("[yellow]Shell completion is not supported on Windows[/yellow]")
             raise typer.Exit(1)
-        
+
         # Try to detect shell from environment
         shell_env = os.environ.get("SHELL", "").lower()
         if "bash" in shell_env:
@@ -2871,23 +2895,20 @@ def install_completion(
             console.print("[yellow]Could not auto-detect shell. Please specify with --shell[/yellow]")
             console.print("Supported shells: bash, zsh, fish")
             raise typer.Exit(1)
-    
+
     # Validate shell
     shell = shell.lower()
     if shell not in ["bash", "zsh", "fish"]:
         console.print(f"[red]Unsupported shell: {shell}[/red]")
         console.print("Supported shells: bash, zsh, fish")
         raise typer.Exit(1)
-    
+
     console.print(f"[bold]Installing completion for {shell}...[/bold]")
-    
+
     try:
         # Generate completion script
-        completion_script = subprocess.check_output(
-            ["claude-code-agent-farm", "--show-completion", shell],
-            text=True
-        )
-        
+        completion_script = subprocess.check_output(["claude-code-agent-farm", "--show-completion", shell], text=True)
+
         # Determine where to install
         if shell == "bash":
             # Try to install to bash-completion directory
@@ -2896,7 +2917,7 @@ def install_completion(
                 "/usr/local/etc/bash_completion.d",
                 f"{Path.home()}/.local/share/bash-completion/completions",
             ]
-            
+
             installed = False
             for comp_dir in completion_dirs:
                 comp_path = Path(comp_dir)
@@ -2906,7 +2927,7 @@ def install_completion(
                     console.print(f"[green]✓ Installed completion to {comp_file}[/green]")
                     installed = True
                     break
-            
+
             if not installed:
                 # Fall back to .bashrc
                 bashrc = Path.home() / ".bashrc"
@@ -2924,9 +2945,9 @@ def install_completion(
                 else:
                     console.print("[red]Could not find .bashrc[/red]")
                     raise typer.Exit(1)
-            
+
             console.print("[dim]Run 'source ~/.bashrc' or start a new shell to use completion[/dim]")
-            
+
         elif shell == "zsh":
             # Install to zsh completions directory
             comp_dirs = [
@@ -2934,7 +2955,7 @@ def install_completion(
                 "/usr/share/zsh/site-functions",
                 f"{Path.home()}/.zsh/completions",
             ]
-            
+
             installed = False
             for comp_dir in comp_dirs:
                 comp_path = Path(comp_dir)
@@ -2944,7 +2965,7 @@ def install_completion(
                     console.print(f"[green]✓ Installed completion to {comp_file}[/green]")
                     installed = True
                     break
-            
+
             if not installed:
                 # Create user completions directory
                 user_comp_dir = Path.home() / ".zsh" / "completions"
@@ -2952,7 +2973,7 @@ def install_completion(
                 comp_file = user_comp_dir / "_claude-code-agent-farm"
                 comp_file.write_text(completion_script)
                 console.print(f"[green]✓ Installed completion to {comp_file}[/green]")
-                
+
                 # Check if this directory is in fpath
                 zshrc = Path.home() / ".zshrc"
                 if zshrc.exists():
@@ -2963,9 +2984,9 @@ def install_completion(
                             f.write(f"fpath=({user_comp_dir} $fpath)\n")
                             f.write("autoload -Uz compinit && compinit\n")
                         console.print(f"[green]✓ Updated {zshrc} to include completion directory[/green]")
-            
+
             console.print("[dim]Run 'source ~/.zshrc' or start a new shell to use completion[/dim]")
-            
+
         elif shell == "fish":
             # Install to fish completions directory
             fish_comp_dir = Path.home() / ".config" / "fish" / "completions"
@@ -2974,10 +2995,10 @@ def install_completion(
             comp_file.write_text(completion_script)
             console.print(f"[green]✓ Installed completion to {comp_file}[/green]")
             console.print("[dim]Completion will be available in new fish shells[/dim]")
-        
+
         console.print("\n[bold green]Shell completion installed successfully![/bold green]")
         console.print("You can now use Tab to complete commands and options.")
-        
+
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Failed to generate completion script: {e}[/red]")
         raise typer.Exit(1) from e

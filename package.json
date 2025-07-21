@@ -1,0 +1,14 @@
+{
+  "name": "claude-code-agent-farm",
+  "version": "1.0.0",
+  "description": "Orchestrate multiple Claude Code agents for parallel code fixing",
+  "scripts": {
+    "lint": "ruff check . && ruff format --check .",
+    "lint:fix": "ruff check --fix . && ruff format .",
+    "type-check": "mypy .",
+    "test": "pytest",
+    "test:cov": "pytest --cov=claude_code_agent_farm --cov-report=term-missing"
+  },
+  "devDependencies": {},
+  "private": true
+}
